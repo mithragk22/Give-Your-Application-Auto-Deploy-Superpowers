@@ -20,6 +20,7 @@ commands:
               curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
               unzip awscliv2.zip
               sudo ./aws/install
+
   install_ansible:
     description: Install Ansible & dependencies
     steps:
@@ -30,6 +31,15 @@ commands:
             apk add --upgrade bash
             apk add --update ansible
             pip install awscli --upgrade
+
+  install_nodejs:
+   description: Install Node.js 13
+   steps:
+     - run:
+         name: Install Node.js 13
+         command: |
+           curl -fsSL https://deb.nodesource.com/setup_13.x | sudo -E bash -
+           sudo apt install -y nodejs
 
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
@@ -45,6 +55,26 @@ commands:
             aws cloudformation delete-stack --stack-name udapeople-backend-<< parameters.Workflow_ID >>
             aws s3 rm s3://udapeople-<<parameters.Workflow_ID>> --recursive
             aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.Workflow_ID >>
+  
+  revert-migrations:
+    description: Revert the last migration if successfully run in the current workflow.
+    parameters:
+      Workflow_ID:
+        type: string
+        default: ${CIRCLE_WORKFLOW_ID:0:7}    
+    steps:
+      - run:
+          name: Revert migrations
+          when: on_fail
+          command: |
+            SUCCESS=$(curl --insecure  https://kvdb.io/UR4XkrxDxtMZzG2p9Ukh61/migration_<< parameters.Workflow_ID >>)
+            echo $SUCCESS            
+            if(( $SUCCESS == 1 )); 
+            then
+              cd ~/project/backend
+              npm install
+              npm run migration:revert          
+            fi
             
 jobs:
   build-frontend:
@@ -206,6 +236,111 @@ jobs:
             ansible-playbook -i inventory.txt configure-server.yml
       - destroy-environment
       - notify_on_failure
+  
+  run-migrations:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - install_awscli
+      - run:
+          name: Run migrations
+          command: |
+            cd backend
+            npm install
+            npm run migrations > migrations_dump.txt
+      - run:
+          name: Send migration results to memstash
+          command: |
+            if grep -q "has been executed successfully." ~/project/backend/migrations_dump.txt
+            then    
+              echo "has success"            
+              curl https://kvdb.io/UR4XkrxDxtMZzG2p9Ukh61/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
+            else
+              echo "has failed"
+              curl --insecure https://kvdb.io/5rTNVEHdZwSn32ApX5E6D5/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '0'
+            fi
+      - destroy-environment
+      - revert-migrations
+      - notify_on_failure
+
+  deploy-frontend:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - install_awscli
+      - install_nodejs
+      - restore_cache:
+         keys: [frontend-deps]
+      - run:
+          name: Install dependencies
+          command: |
+            cd frontend
+            npm install
+      - run:
+          name: Get backend url
+          command: |
+            BACKEND_PUBLIC_IP=$(aws ec2 describe-instances \
+             --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+             --query 'Reservations[*].Instances[*].PublicIpAddress' \
+             --output text)            
+            export API_URL="http://${BACKEND_IP}:3030"
+            echo "API_URL = ${API_URL}"
+            echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
+            cat frontend/.env
+      - run:
+          name: Deploy frontend objects
+          command: |
+            cd frontend
+            npm run build
+            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
+      - destroy-environment
+      - revert-migrations
+      - notify_on_failure 
+
+  deploy-backend:
+    docker:
+      - image: python:3.7-alpine3.11
+    steps:      
+      - checkout
+      - install_awscli
+      - install_ansible
+      - install_nodejs
+      - add_ssh_keys:
+          fingerprints: ["61:5e:4e:1b:de:1e:3e:21:e9:37:62:28:b1:b0:c2:0f"]
+      - attach_workspace:
+          at: ~/
+      - restore_cache:
+          keys: [backend-deps]
+      - run:
+          name: Install dependencies
+          command: |
+            cd backend
+            npm install
+      - run:
+          name: Package Backend
+          command: |
+            cd backend
+            npm run build
+            tar -czf artifact.tar.gz dist/* package*
+            cd ..
+            cp backend/artifact.tar.gz .circleci/ansible/roles/deploy/files
+      - run:
+          name: Deploy backend
+          command: |
+            export TYPEORM_MIGRATIONS_DIR=./migrations
+            export TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js}
+            export TYPEORM_MIGRATIONS=./migrations/*.ts
+            cd .circleci/ansible
+            echo "Contents of the inventory.txt file is -----"
+            cat inventory.txt
+            export ANSIBLE_HOST_KEY_CHECKING=False
+            ansible-playbook -i inventory.txt deploy-backend.yml
+      - destroy-environment
+      - revert-migrations
+      - notify_on_failure
             
 workflows:
   default:
@@ -228,4 +363,10 @@ workflows:
               only: [master]
       - configure-infrastructure:
           requires: [deploy-infrastructure]
+      - run-migrations:
+          requires: [configure-infrastructure]
+      - deploy-frontend:
+          requires: [run-migrations]
+      - deploy-backend:
+          requires: [run-migrations]    
 

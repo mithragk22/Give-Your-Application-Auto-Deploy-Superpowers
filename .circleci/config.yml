@@ -8,7 +8,7 @@ commands:
     steps:
       - slack/notify:
           event: fail
-          channel: cicd
+          channel: deploy
           template: basic_fail_1
             
 jobs:
@@ -110,6 +110,7 @@ jobs:
             npm install
             # npm install oauth-sign@^0.9.0            
             npm audit --audit-level=critical
+      - notify_on_failure 
             
 workflows:
   default:

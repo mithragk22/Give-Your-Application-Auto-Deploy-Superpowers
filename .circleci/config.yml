@@ -312,12 +312,9 @@ jobs:
 
   deploy-backend:
     docker:
-      - image: cimg/base:stable
+      - image: python:3.11-rc-alpine
     steps:      
-      - checkout
-      - install_awscli
-      - install_ansible
-      - install_nodejs
+      - checkout       
       - add_ssh_keys:
           fingerprints: ["61:5e:4e:1b:de:1e:3e:21:e9:37:62:28:b1:b0:c2:0f"]
       - attach_workspace:
@@ -327,8 +324,9 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            cd backend
-            npm install
+            apk add --update ansible rsync 
+            apk add curl
+            pip3 install awscli
       - run:
           name: Package Backend
           command: |

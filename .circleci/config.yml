@@ -123,5 +123,7 @@ workflows:
           requires: [build-backend]
       - scan-backend:
           requires: [build-backend]
+          context: myContext
       - scan-frontend:
           requires: [build-frontend]
+          context: myContext

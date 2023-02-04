@@ -41,16 +41,13 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys: [test-frontend]
+          keys: [frontend-build]
       - run:
           name: Run front-end test
           command: |
             cd frontend
             npm install
-            npm run test
-      - save_cache:
-          paths: [frontend/node_modules]
-          key: test-frontend
+            npm run test      
                 
   test-backend:
     docker:
@@ -58,16 +55,13 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys: [test-backend]
+          keys: [backend-build]
       - run:
           name: Run Back-end test
           command: |
             cd frontend
             npm install
-            npm run test
-      - save_cache:
-          paths: [backend/node_modules]
-          key: test-backend
+            npm run test      
 
   scan-frontend:
     docker:
@@ -75,7 +69,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys: [scan-frontend]
+          keys: [frontend-build]
       - run:
           name: Scan Front-end
           command: |
@@ -83,8 +77,8 @@ jobs:
             npm install
             # npm install oauth-sign@^0.9.0
             npm audit fix --audit-level=critical --force
-            npm audit --audit-level=critical
             npm audit fix --force
+            npm audit --audit-level=critical            
 
   scan-backend:
     docker:
@@ -92,7 +86,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys: [scan-backend]
+          keys: [backend-build]
       - run:
           name: Scan Back-end
           command: |
@@ -100,9 +94,10 @@ jobs:
             npm install
             # npm install oauth-sign@^0.9.0
             npm audit fix --audit-level=critical --force
-            npm audit --audit-level=critical
+            npm audit fix --audit-level=critical --force
             npm audit fix --force
-
+            npm audit --audit-level=critical
+            
 workflows:
   default:
     jobs:

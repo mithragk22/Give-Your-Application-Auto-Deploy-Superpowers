@@ -1,6 +1,6 @@
 ---
 
-- name: "Deployment play" 
+- name: "Configuration play" 
   hosts: web
   user: ubuntu
   become: true
@@ -35,6 +35,6 @@
     - TYPEORM_MIGRATIONS: "{{ lookup('env', 'TYPEORM_MIGRATIONS')}}"
     - TYPEORM_MIGRATIONS_DIR: "{{ lookup('env', 'TYPEORM_MIGRATIONS_DIR')}}"
 
-  # Roles for deploying backend
+  # Roles for configuring the server
   roles:
-    - deploy
+    - configure-server

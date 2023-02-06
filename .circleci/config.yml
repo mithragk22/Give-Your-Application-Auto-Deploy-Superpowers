@@ -322,35 +322,40 @@ jobs:
             pip install awscli
             aws --version  
       - run:
-          name: Deploy backend
+          name: Package Backend
           command: |
             cd backend
-            npm install
             npm run build
+            tar -czf artifact.tar.gz dist/* package*
             cd ..
-            tar -C backend -czvf artifact.tar.gz .
+            cp backend/artifact.tar.gz .circleci/ansible/roles/deploy/files
+      - run:
+          name: Deploy backend
+          command: |
+            export TYPEORM_MIGRATIONS_DIR=./migrations
+            export TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js}
+            export TYPEORM_MIGRATIONS=./migrations/*.ts         
             cd .circleci/ansible
             echo "Contents of the inventory.txt file is -----"
             cat inventory.txt
-            cat ~/project/.circleci/ansible/inventory.txt
-            export ANSIBLE_HOST_KEY_CHECKING=False            
+            cat ~/project/.circleci/ansible/inventory.txt                     
             ansible-playbook -i inventory.txt deploy-backend.yml
-      - destroy-environment
-      - revert-migrations
+      # - destroy-environment
       - notify_on_failure
             
 workflows:
   default:
     jobs:
       #- build-frontend
-      - build-backend
-      - deploy-infrastructure:
-          requires: [build-backend]
-          filters:
-            branches:
-              only: [develop]
-      - configure-infrastructure:
-          requires: [deploy-infrastructure]
+      # - build-backend
+      # - deploy-infrastructure:
+          # requires: [build-backend]
+          # filters:
+            # branches:
+              # only: [develop]
+      # - configure-infrastructure:
+          # requires: [deploy-infrastructure]
+      - deploy-backend          
       #- test-frontend:
           #requires: [build-frontend]
      # - test-backend:

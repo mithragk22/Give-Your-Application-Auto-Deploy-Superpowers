@@ -1,9 +1,8 @@
 ---
 
-- name: "configuration play."
+- name: "configuration play." 
   hosts: web
   user: ubuntu
-  become: true
   gather_facts: false
   vars:
     - ansible_python_interpreter: /usr/bin/python3
@@ -16,3 +15,21 @@
         timeout: 600
   roles:
     - deploy
+
+  environment:
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'AWS_ACCESS_KEY_ID')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'AWS_DEFAULT_REGION')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_CONNECTION')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_DATABASE')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_ENTITIES')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_HOST')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_MIGRATIONS')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_MIGRATIONS_DIR')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_PASSWORD')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_PORT')}}"
+    - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_USERNAME')}}"
+
+---
+
+

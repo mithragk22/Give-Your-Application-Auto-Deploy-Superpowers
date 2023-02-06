@@ -30,6 +30,5 @@
     - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_PORT')}}"
     - TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_USERNAME')}}"
 
----
 
 

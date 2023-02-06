@@ -1,24 +1,70 @@
 ---
-- name: Create a directory if it does not exist
-  ansible.builtin.file:
-    path: ~/app 
+- name: "upgrade packages."
+  become: true
+  apt:
+    upgrade: "yes"
+
+- name: "install dependencies."
+  become: true
+  apt:
+    name: ["nodejs", "npm"]
+    update_cache: yes
+
+- name: "install pm2"
+  become: true
+  npm:
+    name: pm2
+    global: yes
+    production: yes
+    state: present
+
+- name: create backend directory
+  become: yes
+  file:
+    path: /home/ubuntu/backend
     state: directory
-    mode: '0777'
+    mode: 0755
 
-- name: Another symbolic mode example, adding some permissions and removing others
-  ansible.builtin.copy:
-    src: ~/project/artifact.tar.gz
-    dest: ~/app/artifact.tar.gz
+- name: copy backend files
+  become: yes
+  copy:
+    src: artifact.tar.gz
+    dest: /home/ubuntu/backend/artifact.tar.gz
 
-- name: Unarchive a file that is already on the remote machine
-  ansible.builtin.unarchive:
-    src: ~/app/artifact.tar.gz
-    dest: ~/app/
-    remote_src: yes
-
-- name: run the backend
+- name: unpack backend files
+  become: yes
   shell: |
-    cd ~/app/
-    sudo npm install 
-    sudo pm2 stop default
+    cd /home/ubuntu/backend
+    tar -vxf artifact.tar.gz
+    rm -f artifact.tar.gz
+- name: start app
+  become: yes
+  shell: |
+    cd /home/ubuntu/backend
+    npm install
+    npm run start
+    pm2 stop default
     pm2 start npm -- start
+    cd dist
+    pm2 start main.js --update-env
+  environment:
+    # TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_CONNECTION') }}"
+    # TYPEORM_MIGRATIONS_DIR: "./migrations"
+    # TYPEORM_MIGRATIONS: "./migrations/*.js"
+    # TYPEORM_ENTITIES: "./modules/domain/**/*.entity.ts"
+    # TYPEORM_HOST: "{{ lookup('env', 'TYPEORM_HOST') }}"
+    # TYPEORM_PORT: "{{ lookup('env', 'TYPEORM_PORT') }}"
+    # TYPEORM_USERNAME: "{{ lookup('env', 'TYPEORM_USERNAME') }}"
+    # TYPEORM_PASSWORD: "{{ lookup('env', 'TYPEORM_PASSWORD') }}"
+    # TYPEORM_DATABASE: "{{ lookup('env', 'TYPEORM_DATABASE') }}"
+
+    ENVIRONMENT: production
+    TYPEORM_CONNECTION: "postgres"
+    TYPEORM_ENTITIES:  "./modules/domain/**/*.entity{.ts,.js}"
+    TYPEORM_HOST:  "database-1.cst6gejiwz45.us-east-1.rds.amazonaws.com"
+    TYPEORM_PORT: "5432"
+    TYPEORM_USERNAME: "postgres"
+    TYPEORM_PASSWORD: "admin123"
+    TYPEORM_DATABASE: "postgres"
+    TYPEORM_MIGRATIONS: "./migrations/*.js"
+    TYPEORM_MIGRATIONS_DIR: "./migrations"

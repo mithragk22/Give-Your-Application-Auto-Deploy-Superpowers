@@ -276,40 +276,18 @@ jobs:
 
   deploy-frontend:
     docker:
-      - image: circleci/node:13.8.0
+      - image: cimg/base:stable
     steps:
-      - checkout      
+      - checkout
+      - install_awscli
+      - install_nodejs
       - restore_cache:
          keys: [frontend-build]
-      - run:
-          name: Install tar utility
-          command: |
-            yum update -y
-            yum install -y tar gzip
-            yum install sudo -y
-      - run: 
-          name: install node
-          command: |
-            yum update -y
-            curl -sL https://rpm.nodesource.com/setup_13.x | sudo bash -
-            sudo yum install nodejs -y
-      - run: 
-          name: install python3
-          command: |
-            yum install -y python3
-            sudo amazon-linux-extras install ansible2 -y            
-      - run: 
-          name: install ansible
-          command: |
-            sudo amazon-linux-extras install ansible2 -y
-            ansible --version
       - run:
           name: Install dependencies
           command: |
             cd frontend
             npm install
-      - attach_workspace:
-          at: workspace 
       - run:
           name: Get backend url          
           command: |
@@ -321,13 +299,12 @@ jobs:
             cat frontend/.env           
       - run:
           name: Deploy frontend objects
-          command: |            
+          command: |  
             cd frontend        
             npm run build
-            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
-            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive        
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive      
       - destroy-environment
-      - revert-migrations
+      # - revert-migrations
       - notify_on_failure 
 
   deploy-backend:

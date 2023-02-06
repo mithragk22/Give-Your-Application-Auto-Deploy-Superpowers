@@ -346,7 +346,15 @@ jobs:
             
 workflows:
   default:
-    jobs:      
+    jobs:
+      - build-backend
+      - deploy-infrastructure:
+          requires: [build-backend]
+          filters:
+            branches:
+              only: [develop]
+      - configure-infrastructure:
+          requires: [deploy-infrastructure]
       - deploy-backend          
       # - test-frontend:
           #requires: [build-frontend]

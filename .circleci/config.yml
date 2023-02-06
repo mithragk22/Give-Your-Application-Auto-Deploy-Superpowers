@@ -225,7 +225,7 @@ jobs:
       - checkout
       - install_ansible
       - add_ssh_keys:
-          fingerprints: ["61:5e:4e:1b:de:1e:3e:21:e9:37:62:28:b1:b0:c2:0f"]
+          fingerprints: ["48:1e:83:0f:59:0e:10:7d:05:0c:3b:d4:00:1a:e0:2a"]
       - attach_workspace:
           at: ~/      
       - run:
@@ -291,19 +291,18 @@ jobs:
       - run:
           name: Get backend url          
           command: |
-            export BACKEND_IP=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
-            --query 'Reservations[*].Instances[*].PublicIpAddress' \
-            --output text)
-            export API_URL="http://${BACKEND_IP}:3030"
-            echo "API_URL = ${API_URL}" >> frontend/.env            
+            BACKEND_PUBLIC_IP=$(aws ec2 describe-instances \
+             --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+             --query 'Reservations[*].Instances[*].PublicIpAddress' \
+             --output text)
+            echo "API_URL=http://${BACKEND_PUBLIC_IP}:3030" >> frontend/.env
             cat frontend/.env           
       - run:
           name: Deploy frontend objects
           command: |            
+            cd frontend        
             npm run build
-            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz ./dist
-            aws s3 cp ./dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive   
       - persist_to_workspace:
           root: .
           paths:
@@ -318,7 +317,7 @@ jobs:
     steps:      
       - checkout       
       - add_ssh_keys:
-          fingerprints: ["61:5e:4e:1b:de:1e:3e:21:e9:37:62:28:b1:b0:c2:0f"]
+          fingerprints: ["48:1e:83:0f:59:0e:10:7d:05:0c:3b:d4:00:1a:e0:2a"]
       - attach_workspace:
           at: ~/
       - restore_cache:
@@ -332,18 +331,24 @@ jobs:
             pip install awscli
             aws --version  
       - run:
-          name: Deploy backend
+          name: Package Backend
           command: |
             cd backend
             npm install
             npm run build
+            tar -czf artifact.tar.gz dist/* package*
             cd ..
-            tar -C backend -czvf artifact.tar.gz .
+            cp backend/artifact.tar.gz .circleci/ansible/roles/deploy/files
+      - run:
+          name: Deploy backend
+          command: |
+            export TYPEORM_MIGRATIONS_DIR=./migrations
+            export TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js}
+            export TYPEORM_MIGRATIONS=./migrations/*.ts         
             cd .circleci/ansible
             echo "Contents of the inventory.txt file is -----"
             cat inventory.txt
-            cat ~/project/.circleci/ansible/inventory.txt
-            export ANSIBLE_HOST_KEY_CHECKING=False            
+            cat ~/project/.circleci/ansible/inventory.txt                     
             ansible-playbook -i inventory.txt deploy-backend.yml
       - destroy-environment
       - revert-migrations

@@ -319,15 +319,17 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            cd ~/project/.circleci/ansible
-            apk add --update ansible tar gzip nodejs npm rsync openssh curl nodejs
+            cd ~/project/.circleci/ansible   
+            apk add openssh-client
+            apk add ansible         
+            apk add --update tar gzip nodejs npm rsync curl nodejs
+            node --version
+            npm --version
             pip install awscli     
       - run:
           name: Deploy backend
           command: |
-              cd backend
-              apk add --update nodejs-npm
-              apk add --update npm
+              cd backend              
               npm install
               npm run build
               echo build successful
@@ -349,8 +351,7 @@ jobs:
       - run:
           name: Configure server
           command: |    
-              tar -C backend -czvf artifact.tar.gz .
-              mkdir .circleci/ansible/roles/deploy/files
+              tar -C backend -czvf artifact.tar.gz .              
               mv artifact.tar.gz .circleci/ansible/roles/deploy/files
               cd .circleci/ansible
       - run:

@@ -69,12 +69,11 @@ commands:
           command: |
             SUCCESS=$(curl --insecure  https://kvdb.io/UR4XkrxDxtMZzG2p9Ukh61/migration_<< parameters.Workflow_ID >>)
             echo $SUCCESS            
-            if [[ "$SUCCESS" == "success" ]]
+            if(( $SUCCESS==1 )); 
             then
               cd ~/project/backend
-              pwd
-              ls -la
-              npm run migrations:revert                       
+              npm install
+              npm run migration:revert
             fi
             
 jobs:
@@ -302,11 +301,8 @@ jobs:
           command: |            
             cd frontend        
             npm run build
-            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive   
-      - persist_to_workspace:
-          root: .
-          paths:
-            - frontend/dist
+            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive      
       - destroy-environment
       - revert-migrations
       - notify_on_failure 
@@ -325,9 +321,9 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            apk add --update ansible curl rsync openssh nodejs npm
-            sudo apt-get update && sudo apt-get install -y rysync
-            ansible --version
+            apk add --update curl nodejs npm
+            apk add --update ansible zip
+            apk add --update openssh-client tar gzip
             pip install awscli
             aws --version  
       - run:
@@ -336,9 +332,11 @@ jobs:
             cd backend
             npm install
             npm run build
-            tar -czf artifact.tar.gz dist/* package*
-            cd ..
-            cp backend/artifact.tar.gz .circleci/ansible/roles/deploy/files
+            tar -czvf artifact.tar.gz dist/* package*
+            tar -czvf node_modules.tar.gz node_modules/* 
+            ls
+            mv artifact.tar.gz ~/project/.circleci/ansible/roles/deploy/files
+            mv node_modules.tar.gz ~/project/.circleci/ansible/roles/deploy/files
       - run:
           name: Deploy backend
           command: |
@@ -351,7 +349,7 @@ jobs:
             cat ~/project/.circleci/ansible/inventory.txt                     
             ansible-playbook -i inventory.txt deploy-backend.yml
       - destroy-environment
-      - revert-migrations
+      - revert-migrations   
       - notify_on_failure
             
   smoke-test:
@@ -359,8 +357,11 @@ jobs:
       - image: cimg/base:stable
     steps:
       - checkout
-      - install_awscli
-      - install_nodejs
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update curl
+            pip install awscli      
       - run:
           name: Backend smoke test.
           command: |
@@ -387,7 +388,7 @@ jobs:
             else
               exit 1
             fi
-      - destroy-environment
+      #- destroy-environment
       - revert-migrations
       - notify_on_failure
 

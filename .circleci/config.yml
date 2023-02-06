@@ -354,7 +354,7 @@ jobs:
             
   smoke-test:
     docker:
-      - image: cimg/base:stable
+      - image: python:3.9.1-alpine3.12
     steps:
       - checkout
       - run:
@@ -371,7 +371,7 @@ jobs:
               --output text)
             export API_URL=http://${BACKEND_PUBLIC_IP}:3030
             echo "${API_URL}"
-            if curl "${API_URL}/api/status" | grep "ok"
+            if curl -s "${API_URL}/api/status" | grep "ok"
             then
               exit 0
             else
@@ -380,7 +380,7 @@ jobs:
       - run:
           name: Frontend smoke test.
           command: |
-            URL=http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website.${AWS_DEFAULT_REGION}.amazonaws.com/
+            URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website.${AWS_DEFAULT_REGION}.amazonaws.com"
             echo ${URL} 
             if curl -s ${URL} | grep "Welcome"
             then

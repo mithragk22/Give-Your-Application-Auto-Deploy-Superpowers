@@ -193,6 +193,14 @@ jobs:
               --stack-name "udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
               --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"      
       - run:
+          name: Ensure front-end infrastructure exist
+          command: |
+            aws cloudformation deploy \
+              --template-file .circleci/files/frontend.yml \
+              --tags project=udapeople \
+              --stack-name "udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"
+      - run:
           name: Add back-end ip to ansible inventory
           command: |
             BACKEND_PUBLIC_IP=$(aws ec2 describe-instances \
@@ -281,25 +289,20 @@ jobs:
       - run:
           name: Get backend url          
           command: |
-            export BACKEND_IP=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
-            --query 'Reservations[*].Instances[*].PublicIpAddress' \
-            --output text)
-            export API_URL="http://${BACKEND_IP}:3030"
-            echo "API_URL = ${API_URL}" >> frontend/.env            
+            BACKEND_PUBLIC_IP=$(aws ec2 describe-instances \
+             --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+             --query 'Reservations[*].Instances[*].PublicIpAddress' \
+             --output text)
+            echo "API_URL=http://${BACKEND_PUBLIC_IP}:3030" >> frontend/.env
             cat frontend/.env           
       - run:
           name: Deploy frontend objects
-          command: |            
+          command: |  
+            cd frontend        
             npm run build
-            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz ./dist
-            aws s3 cp ./dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
-      - persist_to_workspace:
-          root: .
-          paths:
-            - frontend/dist
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive      
       - destroy-environment
-      - revert-migrations
+      # - revert-migrations
       - notify_on_failure 
 
   deploy-backend:
@@ -341,12 +344,13 @@ jobs:
             cat inventory.txt
             cat ~/project/.circleci/ansible/inventory.txt                     
             ansible-playbook -i inventory.txt deploy-backend.yml
-      # - destroy-environment
+      - destroy-environment
       - notify_on_failure
             
 workflows:
   default:
     jobs:
+      - build-frontend
       - build-backend
       - deploy-infrastructure:
           requires: [build-backend]
@@ -356,6 +360,8 @@ workflows:
       - configure-infrastructure:
           requires: [deploy-infrastructure]
       - deploy-backend:
+          requires: [configure-infrastructure]
+      - deploy-frontend:
           requires: [configure-infrastructure]
       # - test-frontend:
           #requires: [build-frontend]

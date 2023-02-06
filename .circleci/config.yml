@@ -69,11 +69,12 @@ commands:
           command: |
             SUCCESS=$(curl --insecure  https://kvdb.io/UR4XkrxDxtMZzG2p9Ukh61/migration_<< parameters.Workflow_ID >>)
             echo $SUCCESS            
-            if(( $SUCCESS==1 )); 
+            if [[ "$SUCCESS" == "success" ]]
             then
               cd ~/project/backend
-              npm install
-              npm run migration:revert
+              pwd
+              ls -la
+              npm run migrations:revert                       
             fi
             
 jobs:
@@ -301,8 +302,11 @@ jobs:
           command: |            
             cd frontend        
             npm run build
-            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
-            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive      
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive   
+      - persist_to_workspace:
+          root: .
+          paths:
+            - frontend/dist
       - destroy-environment
       - revert-migrations
       - notify_on_failure 
@@ -319,49 +323,58 @@ jobs:
       - restore_cache:
           keys: [backend-build]
       - run:
-          name: Install dependencies
+          name: Install tar utility
           command: |
-            apk add --update curl nodejs npm
-            apk add --update ansible zip
-            apk add --update openssh-client tar gzip
-            pip install awscli
-            aws --version  
+            apk add tar gzip 
+      - run:
+          name: Install dependencies ansible,openssh,nodejs
+          command: |
+             apk add openssh-client
+             apk add ansible
+             apk add --update nodejs npm
+             node --version
+             npm --version 
+      - run: 
+          name: Install awscli 
+          command: |
+            apk update && apk add --no-cache curl gcompat zip &&  \
+            curl -s https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.0.30.zip -o awscliv2.zip && \
+            unzip awscliv2.zip && ./aws/install
+            aws --version 
       - run:
           name: Package Backend
-          command: |
-            cd backend
+          command: |   
+            cd backend        
+            echo TYPEORM_CONNECTION=$TYPEORM_CONNECTION >> .env
+            echo TYPEORM_ENTITIES=$TYPEORM_ENTITIES >> .env
+            echo TYPEORM_HOST=$TYPEORM_HOST >> .env
+            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> .env
+            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> .env
+            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> .env
+            echo TYPEORM_MIGRATIONS=./src/migrations/*.ts >> .env
+            echo TYPEORM_MIGRATIONS_DIR=$TYPEORM_MIGRATIONS_DIR >> .env            
             npm install
             npm run build
-            tar -czvf artifact.tar.gz dist/* package*
-            tar -czvf node_modules.tar.gz node_modules/* 
-            ls
-            mv artifact.tar.gz ~/project/.circleci/ansible/roles/deploy/files
-            mv node_modules.tar.gz ~/project/.circleci/ansible/roles/deploy/files
+            tar -C backend -cvzf artifact.tar.gz .
       - run:
           name: Deploy backend
           command: |
-            export TYPEORM_MIGRATIONS_DIR=./migrations
-            export TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js}
-            export TYPEORM_MIGRATIONS=./migrations/*.ts         
             cd .circleci/ansible
             echo "Contents of the inventory.txt file is -----"
             cat inventory.txt
             cat ~/project/.circleci/ansible/inventory.txt                     
-            ansible-playbook -i inventory.txt deploy-backend.yml
+            ansible-playbook -i inventory.txt deploy-backend.yml -u ubuntu -c ssh
       - destroy-environment
-      - revert-migrations   
+      - revert-migrations
       - notify_on_failure
             
   smoke-test:
     docker:
-      - image: python:3.9.1-alpine3.12
+      - image: cimg/base:stable
     steps:
       - checkout
-      - run:
-          name: Install dependencies
-          command: |
-            apk add --update curl
-            pip install awscli      
+      - install_awscli
+      - install_nodejs
       - run:
           name: Backend smoke test.
           command: |
@@ -371,7 +384,7 @@ jobs:
               --output text)
             export API_URL=http://${BACKEND_PUBLIC_IP}:3030
             echo "${API_URL}"
-            if curl -s "${API_URL}/api/status" | grep "ok"
+            if curl "${API_URL}/api/status" | grep "ok"
             then
               exit 0
             else
@@ -380,7 +393,7 @@ jobs:
       - run:
           name: Frontend smoke test.
           command: |
-            URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website.${AWS_DEFAULT_REGION}.amazonaws.com"
+            URL=http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website.${AWS_DEFAULT_REGION}.amazonaws.com/
             echo ${URL} 
             if curl -s ${URL} | grep "Welcome"
             then
@@ -388,7 +401,7 @@ jobs:
             else
               exit 1
             fi
-      #- destroy-environment
+      - destroy-environment
       - revert-migrations
       - notify_on_failure
 

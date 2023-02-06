@@ -278,16 +278,38 @@ jobs:
     docker:
       - image: cimg/base:stable
     steps:
-      - checkout
-      - install_awscli
-      - install_nodejs
+      - checkout      
       - restore_cache:
          keys: [frontend-build]
+      - run:
+          name: Install tar utility
+          command: |
+            yum update -y
+            yum install -y tar gzip
+            yum install sudo -y
+      - run: 
+          name: install node
+          command: |
+            yum update -y
+            curl -sL https://rpm.nodesource.com/setup_13.x | sudo bash -
+            sudo yum install nodejs -y
+      - run: 
+          name: install python3
+          command: |
+            yum install -y python3
+            sudo amazon-linux-extras install ansible2 -y            
+      - run: 
+          name: install ansible
+          command: |
+            sudo amazon-linux-extras install ansible2 -y
+            ansible --version
       - run:
           name: Install dependencies
           command: |
             cd frontend
             npm install
+      - attach_workspace:
+          at: workspace 
       - run:
           name: Get backend url          
           command: |
@@ -302,11 +324,8 @@ jobs:
           command: |            
             cd frontend        
             npm run build
-            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive   
-      - persist_to_workspace:
-          root: .
-          paths:
-            - frontend/dist
+            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive        
       - destroy-environment
       - revert-migrations
       - notify_on_failure 
@@ -355,6 +374,7 @@ jobs:
             echo TYPEORM_MIGRATIONS_DIR=$TYPEORM_MIGRATIONS_DIR >> .env            
             npm install
             npm run build
+            cd ..
             tar -C backend -cvzf artifact.tar.gz .
       - run:
           name: Deploy backend

@@ -439,7 +439,7 @@ jobs:
       - run:
           name: Fetch old stack workflow id
           command: |
-            export OldWorkflowID=$(cat ~/OldWorkflowID.txt)
+            export OldWorkflowID=$(cat ~/project/OldWorkflowID.txt)
             echo OldWorkflowID: "${OldWorkflowID}"
             echo $OldWorkflowID 
             if [[ "${CIRCLE_WORKFLOW_ID:0:7}" != "${OldWorkflowID}" ]]
@@ -451,6 +451,9 @@ jobs:
             else
               echo "------------------------Cannot Cleanup-------------------------"
             fi
+            - destroy-environment
+            - revert-migrations
+            - notify_on_failure
             
 workflows:
   default:

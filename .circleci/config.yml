@@ -67,13 +67,12 @@ commands:
           name: Revert migrations
           when: on_fail
           command: |
-            SUCCESS=$(curl --insecure  https://kvdb.io/UR4XkrxDxtMZzG2p9Ukh61/migration_<< parameters.Workflow_ID >>)
+            SUCCESS=$(curl --insecure  https://kvdb.io/6psohL9DUqYdahgvzD1QPG/migration_<< parameters.Workflow_ID >>)
             echo $SUCCESS            
-            if [[ "$SUCCESS" == "success" ]]
+            if(( $SUCCESS==1 )); 
             then
               cd ~/project/backend
-              pwd
-              ls -la
+              npm i
               npm run migrations:revert                       
             fi
             
@@ -180,10 +179,13 @@ jobs:
       - notify_on_failure
   deploy-infrastructure:
     docker:
-      - image: cimg/base:stable      
+      - image: amazon/aws-cli
     steps:
       - checkout
-      - install_awscli
+      - run:
+          name: Install tar gzip
+          command: |
+            yum -y install tar gzip
       - run:
           name: Ensure back-end infrastructure exists
           command: |
@@ -238,11 +240,13 @@ jobs:
   
   run-migrations:
     docker:
-      - image: python:3.10-alpine3.16
+      - image: circleci/node:13.8.0
     steps:
       - checkout
       - attach_workspace:
-          at: .
+          at: ~/
+      - restore_cache:
+          keys: [backend-build]
       - run:
           name: Install AWS CLI dependencies   
           working_directory: /tmp       
@@ -264,12 +268,13 @@ jobs:
             if grep -q "has been executed successfully." ~/project/backend/migrations_dump.txt
             then    
               echo "has been done successfully"            
-              curl https://kvdb.io/UR4XkrxDxtMZzG2p9Ukh61/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
+              curl https://kvdb.io/6psohL9DUqYdahgvzD1QPG/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
             else
               echo "has failed"
               curl --insecure https://kvdb.io/5rTNVEHdZwSn32ApX5E6D5/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '0'
             fi
-      - destroy-environment      
+      - destroy-environment  
+      - revert-migrations    
       - notify_on_failure
 
   deploy-frontend:
@@ -319,9 +324,7 @@ jobs:
       - add_ssh_keys:
           fingerprints: ["c5:c6:6a:12:dc:4a:7b:a6:10:c8:f6:7a:0e:20:f1:6a"]
       - attach_workspace:
-          at: ~/
-      - restore_cache:
-          keys: [backend-build]
+          at: ~/      
       - run:
           name: Install dependencies
           command: |
@@ -429,9 +432,12 @@ jobs:
       - persist_to_workspace:
           root: ~/
           paths:
-            - OldWorkflowID.txt      
+            - OldWorkflowID.txt   
+      - destroy-environment
+      - revert-migrations
+      - notify_on_failure   
 
-  cleanup:
+  cleanup-stacks:
     docker:
       - image: amazon/aws-cli
     steps:
@@ -495,4 +501,6 @@ workflows:
           requires: [deploy-backend, deploy-frontend]
       - cloudfront-update:
           requires: [smoke-test]        
+      - cleanup-stacks:
+          requires: [cloudfront-update]
 

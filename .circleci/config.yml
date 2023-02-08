@@ -82,9 +82,7 @@ jobs:
     docker:
       - image: circleci/node:13.8.0
     steps:
-      - checkout
-      - restore_cache:
-          keys: [frontend-build]
+      - checkout      
       - run:
           name: Build front-end
           command: |
@@ -225,7 +223,7 @@ jobs:
       - checkout
       - install_ansible
       - add_ssh_keys:
-          fingerprints: ["48:1e:83:0f:59:0e:10:7d:05:0c:3b:d4:00:1a:e0:2a"]
+          fingerprints: ["c5:c6:6a:12:dc:4a:7b:a6:10:c8:f6:7a:0e:20:f1:6a"]
       - attach_workspace:
           at: ~/      
       - run:
@@ -276,13 +274,18 @@ jobs:
 
   deploy-frontend:
     docker:
-      - image: cimg/base:stable
+      - image: circleci/node:13.8.0
     steps:
       - checkout
-      - install_awscli
-      - install_nodejs
-      - restore_cache:
-         keys: [frontend-build]
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get upgrade
+            sudo apt-get install -y python3
+            sudo apt-get install -y awscli
+            sudo apt-get install -y tar gzip
+            sudo apt-get install -y curl
       - run:
           name: Install dependencies
           command: |
@@ -302,6 +305,7 @@ jobs:
           command: |  
             cd frontend        
             npm run build
+            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
             aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive      
       - destroy-environment
       - revert-migrations
@@ -313,7 +317,7 @@ jobs:
     steps:      
       - checkout       
       - add_ssh_keys:
-          fingerprints: ["48:1e:83:0f:59:0e:10:7d:05:0c:3b:d4:00:1a:e0:2a"]
+          fingerprints: ["c5:c6:6a:12:dc:4a:7b:a6:10:c8:f6:7a:0e:20:f1:6a"]
       - attach_workspace:
           at: ~/
       - restore_cache:
@@ -355,8 +359,7 @@ jobs:
           command: |
             cd .circleci/ansible
             echo "Contents of the inventory.txt file"
-            cat inventory.txt
-            cat inventory.txt
+            cat inventory.txt            
             ansible-playbook -i inventory.txt deploy-backend.yml
       - destroy-environment
       - revert-migrations
@@ -433,33 +436,33 @@ jobs:
       - image: amazon/aws-cli
     steps:
       - checkout
-      - run: yum install -y tar gzip
+      - run: yum install -y tar gzip CURL
       - attach_workspace:
           at: ~/
       - run:
-          name: Fetch old stack workflow id
+          name: Fetch the old stack and remove stack
           command: |
-            export OldWorkflowID=$(aws cloudformation \
-              list-exports --query "Exports[?Name==\`WorkflowID\`].Value" \
-              --no-paginate --output text)
-            echo OldWorkflowID: "${OldWorkflowID}"
-            echo CIRCLE_WORKFLOW_ID "${CIRCLE_WORKFLOW_ID:0:7}"
-            # Fetch the stack names          
+            export OldWorkflowID=$(cat ~/OldWorkflowID.txt)            
             export STACKS=($(aws cloudformation list-stacks --query "StackSummaries[*].StackName" \
-              --stack-status-filter CREATE_COMPLETE --no-paginate --output text)) 
-              echo Stack names: "${STACKS[@]}"
-            if [[ "${CIRCLE_WORKFLOW_ID:0:7}" != "${OldWorkflowID}" ]]
+              --stack-status-filter CREATE_COMPLETE --no-paginate --output text))
+            echo "Checking if there are old stacks to be removed..."
+            echo OldWorkflowID: "${OldWorkflowID}"
+            echo Old Workflow ID: "${OldWorkflowID:10:17}"
+            echo "Current stacks: ${STACKS[@]}"
+            echo Current Workflow ID: "${CIRCLE_WORKFLOW_ID:0:7}"
+            if [[ "${CIRCLE_WORKFLOW_ID:0:7}" != "${OldWorkflowID:10:17}" ]]
             then
-              echo "-----------------------Delete Confirmed------------------------"
-              aws s3 rm "s3://udapeople-${OldWorkflowID}" --recursive
-              aws cloudformation delete-stack --stack-name "udapeople-backend-${OldWorkflowID}"
-              aws cloudformation delete-stack --stack-name "udapeople-frontend-${OldWorkflowID}" 
+              echo "Removing old stacks..."
+              aws s3 rb "s3://udapeople-${OldWorkflowID:10:17}" --force
+              aws cloudformation delete-stack --stack-name "udapeople-backend-${OldWorkflowID:10:17}"
+              aws cloudformation delete-stack --stack-name "udapeople-frontend-${OldWorkflowID:10:17}"
+              echo "Successfully removed old stacks!"
             else
-              echo "------------------------Cannot Cleanup-------------------------"
-            fi
-      #- destroy-environment
-      #- revert-migrations
-      #- notify_on_failure
+              echo "No old stacks were discovered"
+            fi            
+      - destroy-environment
+      - revert-migrations
+      - notify_on_failure
             
 workflows:
   default:

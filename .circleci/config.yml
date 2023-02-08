@@ -72,7 +72,8 @@ commands:
             if(( $SUCCESS==1 )); 
             then
               cd ~/project/backend
-              npm i
+              pwd
+              ls -la
               npm run migrations:revert                       
             fi
             
@@ -503,6 +504,6 @@ workflows:
           requires: [deploy-backend, deploy-frontend]
       - cloudfront-update:
           requires: [smoke-test]        
-      - cleanup-stacks:
-          requires: [cloudfront-update]
+      #- cleanup-stacks:
+         # requires: [cloudfront-update]
 

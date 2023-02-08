@@ -28,7 +28,7 @@ Resources:
       InstanceType: t2.micro
       SecurityGroups:
         - Ref: InstanceSecurityGroup
-      KeyName: udacity     
+      KeyName: prometheus     
       ImageId: ami-00874d747dde814fa 
       Tags:
         - Key: Name

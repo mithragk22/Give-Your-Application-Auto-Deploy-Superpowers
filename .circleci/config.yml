@@ -248,10 +248,12 @@ jobs:
       - restore_cache:
           keys: [backend-build]
       - run:
-          name: Install AWS CLI dependencies   
-          working_directory: /tmp       
+          name: Install dependencies
           command: |
-            apk add --update --no-cache tar gzip nodejs npm aws-cli curl
+            sudo apt-get update
+            sudo apt-get upgrade
+            sudo apt-get install -y curl
+            sudo apt-get install -y awscli
       - run:
           name: Run migrations
           command: |

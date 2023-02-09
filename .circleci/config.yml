@@ -276,8 +276,8 @@ jobs:
               echo "has failed"
               curl --insecure https://kvdb.io/6psohL9DUqYdahgvzD1QPG/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '0'
             fi     
-      - revert-migrations    ## revert the migration if the last step fail          
-      - notify_on_failure
+      #- revert-migrations    ## revert the migration if the last step fail          
+      #- notify_on_failure
 
   deploy-frontend:
     docker:

@@ -248,9 +248,10 @@ jobs:
           at: ~/
       - restore_cache:
           keys: [backend-build]
-      - run: Run migrations
-        command: |
-          echo 'Run migration!! Nothing can be done'          
+      - run:
+          name: Run migrations
+          command: |
+              echo 'Run migration!! Nothing can be done'          
       - revert-migrations    ## revert the migration if the last step fail          
       - notify_on_failure
 
